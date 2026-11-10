@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini Mario Bros · Tesis Edition</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            background: #1a1e2c;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Courier New', monospace;
+        }
+        .game-container {
+            background: #0b0d14;
+            padding: 20px;
+            border-radius: 24px;
+            box-shadow: 0 12px 28px rgba(0,0,0,0.8);
+            border: 2px solid #4a5a7a;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 16px;
+            box-shadow: inset 0 0 0 2px #2e3b4e;
+            background: #9ad0f5;
+            cursor: pointer;
+        }
+        .info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+            color: #e3e9ff;
+            font-weight: bold;
+            font-size: 1.2rem;
+            text-shadow: 2px 2px 0 #1a1e2c;
+            padding: 0 8px;
+            gap: 16px;
+        }
+        .controls {
+            display: flex;
+            gap: 16px;
+            color: #a5b9e0;
+            font-size: 0.85rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .reset-btn {
+            background: #fdca40;
+            border: none;
+            padding: 6px 20px;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 1rem;
+            color: #1e2a3a;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #b08020;
+            transition: all 0.07s;
+            font-family: inherit;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+        .reset-btn:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #b08020;
+        }
+        .credits {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            margin-top: 10px;
+            color: #cdd9ff;
+            font-size: 0.9rem;
+            padding: 4px 10px;
+            border-top: 1px dashed #3a4a6a;
+            padding-top: 10px;
+        }
+        .credits span {
+            font-weight: bold;
+            color: #f5d742;
+        }
+        .logo-placeholder {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: #2a3a5a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            color: #fff;
+            border: 3px solid #f5d742;
+            overflow: hidden;
+            flex-shrink: 0;
+            font-weight: bold;
+            text-align: center;
+            line-height: 1.2;
+            box-shadow: 0 0 12px rgba(245, 215, 66, 0.5);
+        }
+        .logo-placeholder img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        <div class="info">
+            <span>⭐ PUNTOS: <span id="scoreDisplay">0</span></span>
+            <div class="controls">
+                <span>← → MOVER</span>
+                <span>↑ SALTAR</span>
+            </div>
+            <button class="reset-btn" id="resetButton">REINICIAR</button>
+        </div>
+        <div class="credits">
+            <div class="logo-placeholder" id="logoBox">
+                <!-- Imagen de Google Drive con enlace de descarga directa -->
+                <img 
+                    src="https://drive.google.com/uc?export=download&id=1TAD_nAZN4dUv0H0yjR3iNcHCxznArV7A" 
+                    alt="Logo" 
+                    onerror="this.style.display='none'; this.parentElement.innerHTML='PF';"
+                >
+            </div>
+            <span>Creado por <span>Víctor Cruz</span></span>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // ----- CONFIGURACIÓN FÁCIL DE MODIFICAR -----
+            const GRAVITY = 0.55;
+            const JUMP_POWER = -10;
+            const MOVE_SPEED = 4.2;
+            const PLAYER_WIDTH = 28;
+            const PLAYER_HEIGHT = 32;
+            const COIN_SIZE = 28; // Monedas más grandes
+            // -------------------------------------------
+
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const scoreSpan = document.getElementById('scoreDisplay');
+
+            const W = 800, H = 400;
+
+            // ----- ESTADO DEL JUEGO -----
+            let player = {
+                x: 60,
+                y: 300,
+                vx: 0,
+                vy: 0,
+                width: PLAYER_WIDTH,
+                height: PLAYER_HEIGHT,
+                onGround: false,
+                facing: 1
+            };
+
+            const platforms = [
+                { x: 0, y: 360, w: 800, h: 40 },
+                { x: 180, y: 280, w: 100, h: 16 },
+                { x: 380, y: 220, w: 100, h: 16 },
+                { x: 580, y: 150, w: 100, h: 16 },
+                { x: 280, y: 140, w: 80, h: 16 },
+                { x: 680, y: 280, w: 80, h: 16 }
+            ];
+
+            const tesisSteps = [
+                "TEMA",
+                "PLANTEAMIENTO",
+                "OBJETIVOS",
+                "MARCO",
+                "METODOLOGÍA",
+                "RESULTADOS",
+                "CONCLUSIÓN"
+            ];
+
+            let coins = [
+                { x: 210, y: 250, active: true, word: tesisSteps[0] },
+                { x: 420, y: 190, active: true, word: tesisSteps[1] },
+                { x: 620, y: 120, active: true, word: tesisSteps[2] },
+                { x: 320, y: 110, active: true, word: tesisSteps[3] },
+                { x: 720, y: 250, active: true, word: tesisSteps[4] },
+                { x: 500, y: 320, active: true, word: tesisSteps[5] },
+                { x: 120, y: 320, active: true, word: tesisSteps[6] }
+            ];
+
+            let score = 0;
+            let collectedWords = [];
+
+            const keys = {
+                ArrowLeft: false,
+                ArrowRight: false,
+                ArrowUp: false
+            };
+
+            // ----- FUNCIONES AUXILIARES -----
+            function resetGame() {
+                player = {
+                    x: 60,
+                    y: 300,
+                    vx: 0,
+                    vy: 0,
+                    width: PLAYER_WIDTH,
+                    height: PLAYER_HEIGHT,
+                    onGround: false,
+                    facing: 1
+                };
+                coins = [
+                    { x: 210, y: 250, active: true, word: tesisSteps[0] },
+                    { x: 420, y: 190, active: true, word: tesisSteps[1] },
+                    { x: 620, y: 120, active: true, word: tesisSteps[2] },
+                    { x: 320, y: 110, active: true, word: tesisSteps[3] },
+                    { x: 720, y: 250, active: true, word: tesisSteps[4] },
+                    { x: 500, y: 320, active: true, word: tesisSteps[5] },
+                    { x: 120, y: 320, active: true, word: tesisSteps[6] }
+                ];
+                score = 0;
+                collectedWords = [];
+                scoreSpan.textContent = '0';
+            }
+
+            function rectCollide(ax, ay, aw, ah, bx, by, bw, bh) {
+                return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+            }
+
+            function update() {
+                player.vx = 0;
+                if (keys.ArrowLeft) {
+                    player.vx = -MOVE_SPEED;
+                    player.facing = -1;
+                }
+                if (keys.ArrowRight) {
+                    player.vx = MOVE_SPEED;
+                    player.facing = 1;
+                }
+
+                player.x += player.vx;
+
+                if (player.x < 0) player.x = 0;
+                if (player.x + player.width > W) player.x = W - player.width;
+
+                if (keys.ArrowUp && player.onGround) {
+                    player.vy = JUMP_POWER;
+                    player.onGround = false;
+                }
+
+                player.vy += GRAVITY;
+                player.y += player.vy;
+
+                player.onGround = false;
+                for (let plat of platforms) {
+                    if (rectCollide(player.x, player.y, player.width, player.height,
+                                    plat.x, plat.y, plat.w, plat.h)) {
+                        if (player.vy >= 0 && player.y + player.height - player.vy <= plat.y + 1) {
+                            player.y = plat.y - player.height;
+                            player.vy = 0;
+                            player.onGround = true;
+                        } else if (player.vy < 0 && player.y + player.height > plat.y + plat.h) {
+                            if (player.y < plat.y + plat.h) {
+                                player.y = plat.y + plat.h;
+                                player.vy = 0;
+                            }
+                        }
+                    }
+                }
+
+                if (player.y + player.height > 360) {
+                    player.y = 360 - player.height;
+                    player.vy = 0;
+                    player.onGround = true;
+                }
+
+                for (let coin of coins) {
+                    if (!coin.active) continue;
+                    const coinRect = { x: coin.x - 5, y: coin.y - 5, w: COIN_SIZE + 10, h: COIN_SIZE + 10 };
+                    if (rectCollide(player.x, player.y, player.width, player.height,
+                                    coinRect.x, coinRect.y, coinRect.w, coinRect.h)) {
+                        coin.active = false;
+                        score += 10;
+                        scoreSpan.textContent = score;
+                        collectedWords.push(coin.word);
+                    }
+                }
+
+                if (player.y + player.height > H) {
+                    player.y = H - player.height;
+                    player.vy = 0;
+                    player.onGround = true;
+                }
+            }
+
+            function draw() {
+                const gradient = ctx.createLinearGradient(0, 0, 0, H);
+                gradient.addColorStop(0, '#9ad0f5');
+                gradient.addColorStop(0.7, '#c1e0fa');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, W, H);
+
+                ctx.fillStyle = 'rgba(255,255,255,0.85)';
+                ctx.beginPath();
+                ctx.arc(120, 60, 30, 0, Math.PI * 2);
+                ctx.arc(160, 40, 35, 0, Math.PI * 2);
+                ctx.arc(200, 65, 28, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(650, 80, 35, 0, Math.PI * 2);
+                ctx.arc(700, 60, 30, 0, Math.PI * 2);
+                ctx.arc(740, 85, 32, 0, Math.PI * 2);
+                ctx.fill();
+
+                for (let plat of platforms) {
+                    ctx.fillStyle = '#8B4513';
+                    ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
+                    ctx.fillStyle = '#D2691E';
+                    ctx.fillRect(plat.x, plat.y, plat.w, 4);
+                    ctx.fillStyle = '#5C2E0B';
+                    for (let i = 0; i < plat.w; i += 20) {
+                        ctx.fillRect(plat.x + i, plat.y + 4, 2, plat.h - 4);
+                    }
+                    ctx.fillStyle = '#5C2E0B';
+                    ctx.fillRect(plat.x, plat.y + plat.h/2, plat.w, 2);
+                }
+
+                for (let coin of coins) {
+                    if (!coin.active) continue;
+                    const cx = coin.x + COIN_SIZE/2;
+                    const cy = coin.y + COIN_SIZE/2;
+                    const r = COIN_SIZE/2;
+
+                    ctx.shadowColor = '#f0b400';
+                    ctx.shadowBlur = 12;
+
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                    ctx.fillStyle = '#f5d742';
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+
+                    ctx.strokeStyle = '#c49b1b';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.arc(cx - 4, cy - 4, 4, 0, Math.PI * 2);
+                    ctx.fillStyle = '#fff9c4';
+                    ctx.fill();
+
+                    ctx.fillStyle = '#2a1e0a';
+                    ctx.font = 'bold 8px "Courier New", monospace';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    let word = coin.word;
+                    if (word.length > 8) {
+                        const mid = Math.ceil(word.length / 2);
+                        ctx.font = 'bold 7px "Courier New", monospace';
+                        ctx.fillText(word.substring(0, mid), cx, cy - 5);
+                        ctx.fillText(word.substring(mid), cx, cy + 5);
+                    } else {
+                        ctx.fillText(word, cx, cy);
+                    }
+                }
+
+                const px = player.x;
+                const py = player.y;
+                const pw = player.width;
+                const ph = player.height;
+
+                const skin = '#FFD7B5';
+                const red = '#E03A2E';
+                const blue = '#1B4D9E';
+                const brown = '#8B4513';
+                const black = '#1A1A1A';
+
+                ctx.fillStyle = red;
+                ctx.fillRect(px + 4, py, pw - 8, 6);
+                ctx.fillRect(px + 8, py - 2, pw - 16, 4);
+                ctx.fillStyle = red;
+                ctx.fillRect(px + 2, py + 4, pw - 4, 4);
+
+                ctx.fillStyle = skin;
+                ctx.fillRect(px + 6, py + 8, pw - 12, 10);
+                ctx.fillRect(px + 4, py + 10, 4, 4);
+                ctx.fillRect(px + pw - 8, py + 10, 4, 4);
+
+                ctx.fillStyle = black;
+                if (player.facing === 1) {
+                    ctx.fillRect(px + pw - 12, py + 10, 3, 3);
+                    ctx.fillRect(px + pw - 18, py + 10, 2, 3);
+                } else {
+                    ctx.fillRect(px + 9, py + 10, 3, 3);
+                    ctx.fillRect(px + 16, py + 10, 2, 3);
+                }
+
+                ctx.fillStyle = brown;
+                ctx.fillRect(px + 8, py + 14, pw - 16, 3);
+
+                ctx.fillStyle = blue;
+                ctx.fillRect(px + 4, py + 18, pw - 8, 10);
+                ctx.fillStyle = red;
+                ctx.fillRect(px + 6, py + 18, 4, 10);
+                ctx.fillRect(px + pw - 10, py + 18, 4, 10);
+                ctx.fillStyle = '#F5D742';
+                ctx.fillRect(px + 9, py + 22, 3, 3);
+                ctx.fillRect(px + pw - 12, py + 22, 3, 3);
+
+                ctx.fillStyle = blue;
+                ctx.fillRect(px + 4, py + 28, 8, 4);
+                ctx.fillRect(px + pw - 12, py + 28, 8, 4);
+
+                ctx.fillStyle = brown;
+                ctx.fillRect(px + 2, py + 30, 10, 4);
+                ctx.fillRect(px + pw - 12, py + 30, 10, 4);
+
+                ctx.fillStyle = '#3a6e3a';
+                ctx.fillRect(0, 360, W, 6);
+            }
+
+            if (!CanvasRenderingContext2D.prototype.roundRect) {
+                CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+                    if (w < 2 * r) r = w / 2;
+                    if (h < 2 * r) r = h / 2;
+                    this.moveTo(x + r, y);
+                    this.lineTo(x + w - r, y);
+                    this.quadraticCurveTo(x + w, y, x + w, y + r);
+                    this.lineTo(x + w, y + h - r);
+                    this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+                    this.lineTo(x + r, y + h);
+                    this.quadraticCurveTo(x, y + h, x, y + h - r);
+                    this.lineTo(x, y + r);
+                    this.quadraticCurveTo(x, y, x + r, y);
+                    this.closePath();
+                    return this;
+                };
+            }
+
+            function gameLoop() {
+                update();
+                draw();
+                requestAnimationFrame(gameLoop);
+            }
+
+            function handleKeyDown(e) {
+                if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    keys[e.key] = true;
+                }
+            }
+
+            function handleKeyUp(e) {
+                if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    keys[e.key] = false;
+                }
+            }
+
+            document.getElementById('resetButton').addEventListener('click', resetGame);
+
+            window.addEventListener('load', () => {
+                resetGame();
+                gameLoop();
+            });
+
+            window.addEventListener('keydown', handleKeyDown);
+            window.addEventListener('keyup', handleKeyUp);
+
+            canvas.addEventListener('click', () => canvas.focus());
+            canvas.setAttribute('tabindex', '0');
+        })();
+    </script>
+</body>
+</html>
